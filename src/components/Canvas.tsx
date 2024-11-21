@@ -5,48 +5,66 @@ const Canvas: Component = () => {
     let canvasRef: HTMLCanvasElement | undefined;
     const [isDrawing, setIsDrawing] = createSignal(false);
 
+    onMount(() => {
+        if (!canvasRef) return;
+
+        const resizeCanvas = () => {
+            if (!canvasRef) return;
+            const container = canvasRef.parentElement;
+            if (!container) return;
+
+            canvasRef.width = container.clientWidth;
+            canvasRef.height = container.clientHeight;
+        };
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        return () => window.removeEventListener('resize', resizeCanvas);
+    });
+
     const startDrawing = (e: MouseEvent) => {
         if (!canvasRef) return;
         setIsDrawing(true);
-        draw(e);
-    };
+        const ctx = canvasRef.getContext('2d');
+        if (!ctx) return;
 
-    const stopDrawing = () => {
-        setIsDrawing(false);
+        ctx.beginPath();
+        const rect = canvasRef.getBoundingClientRect();
+        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
     };
 
     const draw = (e: MouseEvent) => {
         if (!isDrawing() || !canvasRef) return;
-
         const ctx = canvasRef.getContext('2d');
         if (!ctx) return;
 
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
+        const rect = canvasRef.getBoundingClientRect();
+        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
         ctx.strokeStyle = 'black';
-
-        ctx.lineTo(e.clientX - canvasRef.offsetLeft, e.clientY - canvasRef.offsetTop);
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
         ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(e.clientX - canvasRef.offsetLeft, e.clientY - canvasRef.offsetTop);
     };
 
-    onMount(() => {
-        if (canvasRef) {
-            canvasRef.width = window.innerWidth;
-            canvasRef.height = window.innerHeight - 100; // Account for toolbar and status bar
-        }
-    });
+    const stopDrawing = () => {
+        if (!canvasRef) return;
+        setIsDrawing(false);
+        const ctx = canvasRef.getContext('2d');
+        if (!ctx) return;
+        ctx.beginPath();
+    };
 
     return (
-        <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseUp={stopDrawing}
-            onMouseOut={stopDrawing}
-            onMouseMove={draw}
-            class="absolute inset-0 bg-white"
-        />
+        <div class="w-full h-full bg-gray-50 overflow-hidden">
+            <canvas
+                ref={canvasRef}
+                class="border border-gray-200 bg-white shadow-sm"
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseOut={stopDrawing}
+            />
+        </div>
     );
 };
 

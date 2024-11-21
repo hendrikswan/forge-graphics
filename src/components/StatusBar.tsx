@@ -3,11 +3,17 @@ import { Component } from 'solid-js';
 
 const StatusBar: Component = () => {
     return (
-        <div class="bg-gray-100 p-2 text-sm text-gray-600 border-t flex justify-between">
-            <span>Forge Graphics</span>
-            <span>Tools: Pencil | Color: Black</span>
-            <span>Zoom: 100%</span>
-        </div>
+        <footer class="h-6 bg-editor-toolbar border-t border-gray-200 px-4 flex items-center justify-between text-xs text-gray-600">
+            <div class="flex items-center space-x-4">
+                <span>Tool: Pencil</span>
+                <span>Size: 2px</span>
+                <span>Color: #000000</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span>Zoom: 100%</span>
+                <span>Canvas: 1920 × 1080px</span>
+            </div>
+        </footer>
     );
 };
 
