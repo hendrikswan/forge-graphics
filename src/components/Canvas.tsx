@@ -1,6 +1,6 @@
 // src/components/Canvas.tsx
 import { Component, createSignal, onMount, createEffect } from 'solid-js';
-import {Layer, TextLayer, ImageLayer, useProjectStore} from '../store/store';
+import {Layer, TextLayer, ImageLayer, useProjectStore, Position} from '../store/store';
 
 const Canvas: Component = () => {
     const store = useProjectStore();
@@ -9,6 +9,8 @@ const Canvas: Component = () => {
     const [isDrawing, setIsDrawing] = createSignal(false);
     const [ctx, setCtx] = createSignal<CanvasRenderingContext2D | null>(null);
     const [bgCtx, setBgCtx] = createSignal<CanvasRenderingContext2D | null>(null);
+    const [isDragging, setIsDragging] = createSignal(false);
+    const [dragStart, setDragStart] = createSignal<Position | null>(null);
 
     // Initialize canvases
     onMount(() => {
@@ -86,6 +88,7 @@ const Canvas: Component = () => {
     };
 
     const renderLayers = async () => {
+        console.log('rendering layers')
         const context = ctx();
         if (!context) return;
 
@@ -99,12 +102,30 @@ const Canvas: Component = () => {
             } else if (layer.type === 'image') {
                 await renderImageLayer(context, layer);
             }
+
+            // Draw selection border if layer is selected
+            if (layer.id === store.selectedLayerId) {
+                console.log('found selected layer' , layer.id);
+                context.save();
+                context.strokeStyle = '#0066ff';
+                context.lineWidth = 2;
+                context.setLineDash([5, 5]);
+                context.strokeRect(
+                    layer.position.left,
+                    layer.position.top,
+                    layer.dimension.width,
+                    layer.dimension.height
+                );
+                context.restore();
+            }
         }
     };
 
     // Re-render when layers change
     createEffect(() => {
+        console.log('layers changed');
         const layers = store.project.layers;
+        const selectedId = store.selectedLayerId;
         renderLayers();
     });
 
@@ -148,16 +169,73 @@ const Canvas: Component = () => {
         context.beginPath();
     };
 
+    const getLayerAtPosition = (x: number, y: number): Layer | null => {
+        // Iterate layers in reverse to check top layers first
+        for (let i = store.project.layers.length - 1; i >= 0; i--) {
+            const layer = store.project.layers[i];
+            if (
+                x >= layer.position.left &&
+                x <= layer.position.left + layer.dimension.width &&
+                y >= layer.position.top &&
+                y <= layer.position.top + layer.dimension.height
+            ) {
+                return layer;
+            }
+        }
+        return null;
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+        if (!canvasRef) return;
+        const rect = canvasRef.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const clickedLayer = getLayerAtPosition(x, y);
+
+        if (clickedLayer) {
+            store.selectLayer(clickedLayer.id);
+            setIsDragging(true);
+            setDragStart({ left: x, top: y });
+        } else {
+            store.selectLayer(null);
+        }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+        if (!isDragging() || !dragStart() || !store.selectedLayer) return;
+
+        const rect = canvasRef!.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+
+        const deltaX = currentX - dragStart()!.left;
+        const deltaY = currentY - dragStart()!.top;
+
+        const newPosition = {
+            left: store.selectedLayer.position.left + deltaX,
+            top: store.selectedLayer.position.top + deltaY
+        };
+
+        store.updateLayerPosition(store.selectedLayer.id, newPosition);
+        setDragStart({ left: currentX, top: currentY });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+        setDragStart(null);
+    };
+
     return (
         <div class="w-full h-full bg-gray-50 overflow-hidden relative">
             {/* Background canvas for drawing */}
             <canvas
                 ref={backgroundCanvasRef}
                 class="absolute top-0 left-0 border border-gray-200 bg-white shadow-sm"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseOut={stopDrawing}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
             />
             {/* Main canvas for layers */}
             <canvas

@@ -268,7 +268,19 @@ export const projectStore = {
         }
     },
 
-    // ... (keep all your other existing methods)
+    selectLayer(id: string | null) {
+        setStore('selectedLayerId', id);
+    },
+
+    updateLayerPosition(id: string, position: Partial<Position>) {
+        setStore('project', 'layers', layers =>
+            layers.map(layer =>
+                layer.id === id
+                    ? { ...layer, position: { ...layer.position, ...position } }
+                    : layer
+            )
+        );
+    }
 };
 
 // Create a reactive hook to use the store in components
