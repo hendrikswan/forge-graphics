@@ -11,6 +11,20 @@ const Canvas: Component = () => {
     const [bgCtx, setBgCtx] = createSignal<CanvasRenderingContext2D | null>(null);
     const [isDragging, setIsDragging] = createSignal(false);
     const [dragStart, setDragStart] = createSignal<Position | null>(null);
+    const imageCache: { [key: string]: HTMLImageElement } = {};
+
+    // Add this function to preload images
+    const loadImage = async (src: string) => {
+        if (imageCache[src]) return imageCache[src];
+
+        const image = new Image();
+        image.src = src;
+        await new Promise((resolve) => {
+            image.onload = resolve;
+        });
+        imageCache[src] = image;
+        return image;
+    };
 
     // Initialize canvases
     onMount(() => {
@@ -37,7 +51,13 @@ const Canvas: Component = () => {
 
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
-        return () => window.removeEventListener('resize', resizeCanvas);
+
+        return () => {
+            window.removeEventListener('resize', resizeCanvas);
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
     });
 
     // Render functions for different layer types
@@ -62,12 +82,8 @@ const Canvas: Component = () => {
     };
 
     const renderImageLayer = async (ctx: CanvasRenderingContext2D, layer: ImageLayer) => {
-        const image = new Image();
-        image.src = layer.imageSrc;
-
-        await new Promise((resolve) => {
-            image.onload = resolve;
-        });
+        const image = imageCache[layer.imageSrc];
+        if (!image) return;
 
         ctx.save();
 
@@ -87,38 +103,46 @@ const Canvas: Component = () => {
         ctx.restore();
     };
 
+    let animationFrameId: number;
+
     const renderLayers = async () => {
-        console.log('rendering layers')
-        const context = ctx();
-        if (!context) return;
-
-        // Clear canvas
-        context.clearRect(0, 0, canvasRef!.width, canvasRef!.height);
-
-        // Render each layer
-        for (const layer of store.project.layers) {
-            if (layer.type === 'text') {
-                renderTextLayer(context, layer);
-            } else if (layer.type === 'image') {
-                await renderImageLayer(context, layer);
-            }
-
-            // Draw selection border if layer is selected
-            if (layer.id === store.selectedLayerId) {
-                console.log('found selected layer' , layer.id);
-                context.save();
-                context.strokeStyle = '#0066ff';
-                context.lineWidth = 2;
-                context.setLineDash([5, 5]);
-                context.strokeRect(
-                    layer.position.left,
-                    layer.position.top,
-                    layer.dimension.width,
-                    layer.dimension.height
-                );
-                context.restore();
-            }
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
         }
+
+        animationFrameId = requestAnimationFrame(async () => {
+            console.log('rendering layers')
+            const context = ctx();
+            if (!context) return;
+
+            // Clear canvas
+            context.clearRect(0, 0, canvasRef!.width, canvasRef!.height);
+
+            // Render each layer
+            for (const layer of store.project.layers) {
+                if (layer.type === 'text') {
+                    renderTextLayer(context, layer);
+                } else if (layer.type === 'image') {
+                    await renderImageLayer(context, layer);
+                }
+
+                // Draw selection border if layer is selected
+                if (layer.id === store.selectedLayerId) {
+                    console.log('found selected layer' , layer.id);
+                    context.save();
+                    context.strokeStyle = '#0066ff';
+                    context.lineWidth = 2;
+                    context.setLineDash([5, 5]);
+                    context.strokeRect(
+                        layer.position.left,
+                        layer.position.top,
+                        layer.dimension.width,
+                        layer.dimension.height
+                    );
+                    context.restore();
+                }
+            }
+        });
     };
 
     // Re-render when layers change
@@ -127,6 +151,15 @@ const Canvas: Component = () => {
         const layers = store.project.layers;
         const selectedId = store.selectedLayerId;
         renderLayers();
+    });
+
+    createEffect(() => {
+        const layers = store.project.layers;
+        layers.forEach(layer => {
+            if (layer.type === 'image') {
+                loadImage(layer.imageSrc);
+            }
+        });
     });
 
     // Handle drawing operations
