@@ -42,7 +42,7 @@ export type Project = {
     canvas: Dimension;
 }
 
-type ProjectStore = {
+type ProjectEditSession = {
     project: Project;
     selectedLayerId: string | null;
 };
@@ -77,8 +77,7 @@ export const createTextLayer = (
     rotation: 0,
 });
 
-
-const [store, setStore] = createStore<ProjectStore>({
+const [store, setStore] = createStore<ProjectEditSession>({
     project: {
         layers: [],
         canvas: { width: 800, height: 600 }
@@ -86,7 +85,7 @@ const [store, setStore] = createStore<ProjectStore>({
     selectedLayerId: null
 });
 
-export const projectStore = {
+const projectStore = {
     // Getters
     get project() { return store.project; },
     get selectedLayerId() { return store.selectedLayerId; },
@@ -135,3 +134,5 @@ export const projectStore = {
 export function useProjectStore() {
     return projectStore;
 }
+
+export type ProjectStore = ReturnType<typeof useProjectStore>;
