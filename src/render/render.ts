@@ -1,34 +1,113 @@
 import {createEffect, Signal} from "solid-js";
-import {Project, ProjectStore} from "../store/store";
+import {Dimension, Project, ProjectStore} from "../store/store";
 import {renderTextLayer} from "./layers/text";
 import {renderImageLayer} from "./layers/image";
 
+// function drawBackground(ctx: CanvasRenderingContext2D, dimension: {width: number, height: number}) {
+//     ctx.fillStyle = '#ffffff';
+//     ctx.fillRect(0, 0, dimension.width, dimension.height);
+// }
 
-const imageCache: { [key: string]: HTMLImageElement } = {};
+function calculateViewportTransform(
+    projectDimension: Dimension,
+    canvasDimension: Dimension
+) {
+    const PADDING = 5; // 5px padding
+
+    // Adjust canvas dimensions to account for padding
+    const availableWidth = canvasDimension.width - (PADDING * 2);
+    const availableHeight = canvasDimension.height - (PADDING * 2);
+
+    // Calculate scale with padding-adjusted dimensions
+    const scaleX = availableWidth / projectDimension.width;
+    const scaleY = availableHeight / projectDimension.height;
+
+    const scale = Math.min(scaleX, scaleY, 1); // Never scale up
+
+    // Center with padding included
+    const translateX = ((canvasDimension.width - (projectDimension.width * scale)) / 2);
+    const translateY = ((canvasDimension.height - (projectDimension.height * scale)) / 2);
+
+    return {
+        scale,
+        translateX,
+        translateY
+    };
+}
+
+function setupCanvasTransform(
+    {
+        ctx,
+        projectDimension,
+        canvasDimension
+    }: {
+        ctx: CanvasRenderingContext2D;
+        projectDimension: Dimension;
+        canvasDimension: Dimension
+    }
+) {
+    // Reset transform first
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    const {scale, translateX, translateY} = calculateViewportTransform(
+        projectDimension,
+        canvasDimension
+    );
+
+    ctx.translate(translateX, translateY);
+    ctx.scale(scale, scale);
+}
+
+// Modified drawing function
+function drawBackground(
+    ctx: CanvasRenderingContext2D,
+    projectDimension: Dimension
+) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, projectDimension.width, projectDimension.height);
+}
 
 export function render(
-    { projectStore, canvasRef, ctx } :
-    { projectStore: ProjectStore; canvasRef: HTMLCanvasElement; ctx: () => CanvasRenderingContext2D | null}) {
+    {projectStore, canvasRef, ctx}:
+    { projectStore: ProjectStore; canvasRef: HTMLCanvasElement; ctx: () => CanvasRenderingContext2D | null }) {
     let animationFrameId: number;
+    let initializedTranslation = false;
     createEffect(() => {
+        console.log('in render.createEffect')
         // Access the store to create dependency
         const currentState = projectStore.project;
+        const canvasDimension = projectStore.canvas;
         // Deep clone to prevent mutation of snapshot
-        const snapshot = JSON.parse(JSON.stringify(currentState));
+        // const snapshot = JSON.parse(JSON.stringify(currentState));
 
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
         }
 
-        animationFrameId = requestAnimationFrame(async () => {
-            const context = ctx();
-            if (!context) return;
+        const context = ctx();
+        if (!context) return;
 
+        if (!initializedTranslation) {
+            context.translate(projectStore.project.dimension.width / 2, projectStore.project.dimension.height / 4);
+            initializedTranslation = true;
+        }
+
+        animationFrameId = requestAnimationFrame(async () => {
             console.log('rendering layers')
-            if (!context) return;
 
             // Clear canvas
+            context.setTransform(1, 0, 0, 1, 0, 0);
             context.clearRect(0, 0, canvasRef!.width, canvasRef!.height);
+
+            // context.translate(projectStore.canvas.width / 2, projectStore.canvas.height / 2);
+
+            setupCanvasTransform({
+                ctx: context,
+                projectDimension: projectStore.project.dimension,
+                canvasDimension,
+            });
+
+            drawBackground(context, projectStore.project.dimension);
 
             // Render each layer
             for (const layer of projectStore.project.layers) {
@@ -40,7 +119,7 @@ export function render(
 
                 // Draw selection border if layer is selected
                 if (layer.id === projectStore.selectedLayerId) {
-                    console.log('found selected layer' , layer.id);
+                    console.log('found selected layer', layer.id);
                     context.save();
                     context.strokeStyle = '#0066ff';
                     context.lineWidth = 2;
@@ -57,34 +136,3 @@ export function render(
         });
     });
 }
-//
-// // Example usage:
-// let lastState: Project | null = null;
-//
-// trackStoreChanges((snapshot) => {
-//     // Skip initial state
-//     if (lastState === null) {
-//         lastState = snapshot;
-//         return;
-//     }
-//
-//     // Do something with the new state
-//     console.log('State changed:', snapshot);
-//     // Compare with previous state
-//     console.log('Changes:', diffStates(lastState, snapshot));
-//
-//     lastState = snapshot;
-// });
-//
-// // Helper to find what changed between states
-// function diffStates(prev: Project, next: Project) {
-//     const changes = {
-//         layersAdded: next.layers.filter(l => !prev.layers.find(pl => pl.id === l.id)),
-//         layersRemoved: prev.layers.filter(l => !next.layers.find(nl => nl.id === l.id)),
-//         layersModified: next.layers.filter(l => {
-//             const prevLayer = prev.layers.find(pl => pl.id === l.id);
-//             return prevLayer && JSON.stringify(prevLayer) !== JSON.stringify(l);
-//         })
-//     };
-//     return changes;
-// }

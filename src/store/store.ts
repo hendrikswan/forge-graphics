@@ -33,21 +33,20 @@ export type TextLayer = {
 }
 
 export type Layer = ImageLayer | TextLayer;
-
 export type LayerType = Layer['type'];
-
 
 export type Project = {
     layers: Layer[];
-    canvas: Dimension;
+    dimension: Dimension;
 }
 
 type ProjectEditSession = {
     project: Project;
     selectedLayerId: string | null;
+    canvas: Dimension
 };
 
-// Utility functions for generating new layers
+// Utility functions remain the same
 export const createImageLayer = (
     imageSrc: string,
     position: Position = {top: 0, left: 0},
@@ -80,57 +79,65 @@ export const createTextLayer = (
 const [store, setStore] = createStore<ProjectEditSession>({
     project: {
         layers: [],
-        canvas: { width: 800, height: 600 }
+        dimension: { width: 800, height: 600 }
     },
-    selectedLayerId: null
+    selectedLayerId: null,
+    canvas: { width: 800, height: 600 }
 });
 
 const projectStore = {
-    // Getters
+    // Getters remain the same
     get project() { return store.project; },
+    get canvas() { return store.canvas; },
     get selectedLayerId() { return store.selectedLayerId; },
     get selectedLayer() {
         return store.project.layers.find(layer => layer.id === store.selectedLayerId);
     },
 
-    // Layer Management
+    // Layer Management with produce
     addImageLayer(imageSrc: string, position?: Position, dimension?: Dimension) {
-        setStore('project', 'layers', produce(layers => {
-            layers.push(createImageLayer(imageSrc, position, dimension));
+        setStore(produce(draft => {
+            draft.project.layers.push(createImageLayer(imageSrc, position, dimension));
         }));
     },
 
     addTextLayer(text: string, position?: Position, dimension?: Dimension) {
-        setStore('project', 'layers', produce(layers => {
-            layers.push(createTextLayer(text, position, dimension));
+        setStore(produce(draft => {
+            draft.project.layers.push(createTextLayer(text, position, dimension));
         }));
     },
 
     removeLayer(layerId: string) {
-        setStore('project', 'layers', layers =>
-            layers.filter(layer => layer.id !== layerId)
-        );
-        if (store.selectedLayerId === layerId) {
-            setStore('selectedLayerId', null);
-        }
+        setStore(produce(draft => {
+            draft.project.layers = draft.project.layers.filter(layer => layer.id !== layerId);
+            if (draft.selectedLayerId === layerId) {
+                draft.selectedLayerId = null;
+            }
+        }));
     },
 
     selectLayer(id: string | null) {
-        setStore('selectedLayerId', id);
+        setStore(produce(draft => {
+            draft.selectedLayerId = id;
+        }));
     },
 
     updateLayerPosition(id: string, position: Partial<Position>) {
-        setStore('project', 'layers', layers =>
-            layers.map(layer =>
-                layer.id === id
-                    ? { ...layer, position: { ...layer.position, ...position } }
-                    : layer
-            )
-        );
+        setStore(produce(draft => {
+            const layer = draft.project.layers.find(l => l.id === id);
+            if (layer) {
+                layer.position = { ...layer.position, ...position };
+            }
+        }));
+    },
+
+    setCanvasDimension(dimension: Dimension) {
+        setStore(produce(draft => {
+            draft.canvas = dimension;
+        }));
     }
 };
 
-// Create a reactive hook to use the store in components
 export function useProjectStore() {
     return projectStore;
 }
