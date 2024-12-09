@@ -67,13 +67,66 @@ function drawBackground(
     ctx.fillRect(0, 0, projectDimension.width, projectDimension.height);
 }
 
+function renderLayers({projectStore, context}: { projectStore: ProjectStore, context: CanvasRenderingContext2D }) {
+    for (const layer of projectStore.project.layers) {
+        if (layer.type === 'text') {
+            renderTextLayer(context, layer);
+        } else if (layer.type === 'image') {
+            renderImageLayer(context, layer);
+        }
+
+        // Draw selection border if layer is selected
+        if (layer.id === projectStore.selectedLayerId) {
+            console.log('found selected layer', layer.id);
+            context.save();
+            context.strokeStyle = '#0066ff';
+            context.lineWidth = 2;
+            context.setLineDash([5, 5]);
+            context.strokeRect(
+                layer.position.left,
+                layer.position.top,
+                layer.dimension.width,
+                layer.dimension.height
+            );
+            context.restore();
+        }
+    }
+}
+
+export function renderImpl({projectStore, context, canvasDimension}: {
+    projectStore: ProjectStore,
+    context: CanvasRenderingContext2D,
+    canvasDimension: Dimension
+}) {
+    console.log('in requestAnimationFrame')
+    console.log('rendering layers')
+
+    // Clear canvas
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvasDimension.width, canvasDimension.height);
+
+    // context.translate(projectStore.canvas.width / 2, projectStore.canvas.height / 2);
+
+    setupCanvasTransform({
+        ctx: context,
+        projectDimension: projectStore.project.dimension,
+        canvasDimension,
+    });
+
+    drawBackground(context, projectStore.project.dimension);
+
+    renderLayers({
+        projectStore,
+        context
+    });
+}
+
 export function render(
     {projectStore, canvasRef, ctx}:
     { projectStore: ProjectStore; canvasRef: HTMLCanvasElement; ctx: () => CanvasRenderingContext2D | null }) {
     let animationFrameId: number;
     let initializedTranslation = false;
     createEffect(() => {
-        console.log('in render.createEffect')
         // Access the store to create dependency
         const currentState = projectStore.project;
         const canvasDimension = projectStore.canvas;
@@ -92,47 +145,10 @@ export function render(
             initializedTranslation = true;
         }
 
+        renderImpl({projectStore, context, canvasDimension});
+
         animationFrameId = requestAnimationFrame(async () => {
-            console.log('rendering layers')
-
-            // Clear canvas
-            context.setTransform(1, 0, 0, 1, 0, 0);
-            context.clearRect(0, 0, canvasRef!.width, canvasRef!.height);
-
-            // context.translate(projectStore.canvas.width / 2, projectStore.canvas.height / 2);
-
-            setupCanvasTransform({
-                ctx: context,
-                projectDimension: projectStore.project.dimension,
-                canvasDimension,
-            });
-
-            drawBackground(context, projectStore.project.dimension);
-
-            // Render each layer
-            for (const layer of projectStore.project.layers) {
-                if (layer.type === 'text') {
-                    renderTextLayer(context, layer);
-                } else if (layer.type === 'image') {
-                    renderImageLayer(context, layer);
-                }
-
-                // Draw selection border if layer is selected
-                if (layer.id === projectStore.selectedLayerId) {
-                    console.log('found selected layer', layer.id);
-                    context.save();
-                    context.strokeStyle = '#0066ff';
-                    context.lineWidth = 2;
-                    context.setLineDash([5, 5]);
-                    context.strokeRect(
-                        layer.position.left,
-                        layer.position.top,
-                        layer.dimension.width,
-                        layer.dimension.height
-                    );
-                    context.restore();
-                }
-            }
+            renderImpl({projectStore, context, canvasDimension});
         });
     });
 }
