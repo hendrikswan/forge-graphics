@@ -3,11 +3,6 @@ import {Dimension, Project, ProjectStore} from "../store/store";
 import {renderTextLayer} from "./layers/text";
 import {renderImageLayer} from "./layers/image";
 
-// function drawBackground(ctx: CanvasRenderingContext2D, dimension: {width: number, height: number}) {
-//     ctx.fillStyle = '#ffffff';
-//     ctx.fillRect(0, 0, dimension.width, dimension.height);
-// }
-
 function calculateViewportTransform(
     projectDimension: Dimension,
     canvasDimension: Dimension
