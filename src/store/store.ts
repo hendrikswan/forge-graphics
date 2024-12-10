@@ -44,6 +44,7 @@ type ProjectEditSession = {
     project: Project;
     selectedLayerId: string | null;
     canvas: Dimension
+    assets: { [key: string]: { image? : HTMLImageElement;  } }
 };
 
 // Utility functions remain the same
@@ -82,7 +83,8 @@ const [store, setStore] = createStore<ProjectEditSession>({
         dimension: { width: 800, height: 600 }
     },
     selectedLayerId: null,
-    canvas: { width: 800, height: 600 }
+    canvas: { width: 800, height: 600 },
+    assets: {}
 });
 
 const projectStore = {
@@ -93,6 +95,7 @@ const projectStore = {
     get selectedLayer() {
         return store.project.layers.find(layer => layer.id === store.selectedLayerId);
     },
+    get assets() { return store.assets; },
 
     // Layer Management with produce
     addImageLayer(imageSrc: string, position?: Position, dimension?: Dimension) {
@@ -134,6 +137,12 @@ const projectStore = {
     setCanvasDimension(dimension: Dimension) {
         setStore(produce(draft => {
             draft.canvas = dimension;
+        }));
+    },
+
+    setImageInCache(src: string, image: HTMLImageElement) {
+        setStore(produce(draft => {
+            draft.assets[src] = { image };
         }));
     }
 };

@@ -1,34 +1,10 @@
 import {createEffect, Signal} from "solid-js";
 import {Dimension, Project, ProjectStore} from "../store/store";
 import {renderTextLayer} from "./layers/text";
-import {renderImageLayer} from "./layers/image";
+import {loadImage, renderImageLayer} from "./layers/image";
+import {MouseState, setupMouseHandlers} from "./interactivity/setup_mouse_handlers";
+import {calculateViewportTransform} from "./calculate_viewport_transform";
 
-function calculateViewportTransform(
-    projectDimension: Dimension,
-    canvasDimension: Dimension
-) {
-    const PADDING = 5; // 5px padding
-
-    // Adjust canvas dimensions to account for padding
-    const availableWidth = canvasDimension.width - (PADDING * 2);
-    const availableHeight = canvasDimension.height - (PADDING * 2);
-
-    // Calculate scale with padding-adjusted dimensions
-    const scaleX = availableWidth / projectDimension.width;
-    const scaleY = availableHeight / projectDimension.height;
-
-    const scale = Math.min(scaleX, scaleY, 1); // Never scale up
-
-    // Center with padding included
-    const translateX = ((canvasDimension.width - (projectDimension.width * scale)) / 2);
-    const translateY = ((canvasDimension.height - (projectDimension.height * scale)) / 2);
-
-    return {
-        scale,
-        translateX,
-        translateY
-    };
-}
 
 function setupCanvasTransform(
     {
@@ -62,12 +38,24 @@ function drawBackground(
     ctx.fillRect(0, 0, projectDimension.width, projectDimension.height);
 }
 
+function loadImages({ projectStore }: {projectStore: ProjectStore}) {
+    for (const layer of projectStore.project.layers) {
+        if (layer.type === 'image') {
+            loadImage(layer.imageSrc, projectStore);
+        }
+
+    }
+}
+
 function renderLayers({projectStore, context}: { projectStore: ProjectStore, context: CanvasRenderingContext2D }) {
     for (const layer of projectStore.project.layers) {
         if (layer.type === 'text') {
             renderTextLayer(context, layer);
         } else if (layer.type === 'image') {
-            renderImageLayer(context, layer);
+            const image = projectStore.assets[layer.imageSrc]?.image;
+            if (image) {
+                renderImageLayer(context, layer, image);
+            }
         }
 
         // Draw selection border if layer is selected
@@ -96,6 +84,8 @@ export function renderImpl({projectStore, context, canvasDimension}: {
     console.log('in requestAnimationFrame')
     console.log('rendering layers')
 
+    loadImages({projectStore});
+
     // Clear canvas
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvasDimension.width, canvasDimension.height);
@@ -121,6 +111,20 @@ export function render(
     { projectStore: ProjectStore; canvasRef: HTMLCanvasElement; ctx: () => CanvasRenderingContext2D | null }) {
     let animationFrameId: number;
     let initializedTranslation = false;
+
+    // Create mouse state
+    const mouseState: MouseState = {
+        isDragging: false,
+        dragStart: null
+    };
+
+    // Set up mouse handlers
+    const mouseCleanup = setupMouseHandlers({
+        canvasRef,
+        projectStore,
+        mouseState
+    });
+
     createEffect(() => {
         // Access the store to create dependency
         const currentState = projectStore.project;
@@ -146,4 +150,12 @@ export function render(
             renderImpl({projectStore, context, canvasDimension});
         });
     });
+
+    // Return combined cleanup
+    return () => {
+        mouseCleanup();
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+    };
 }

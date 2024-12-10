@@ -1,13 +1,13 @@
-import {ImageLayer} from "../../store/store";
+import {ImageLayer, ProjectStore} from "../../store/store";
 
-const imageCache: { [key: string]: HTMLImageElement } = {};
+// const imageCache: { [key: string]: HTMLImageElement } = {};
 
-export function renderImageLayer(ctx: CanvasRenderingContext2D, layer: ImageLayer) {
-    const image = imageCache[layer.imageSrc];
-    if (!image) {
-        loadImage(layer.imageSrc);
-        return;
-    }
+export function renderImageLayer(ctx: CanvasRenderingContext2D, layer: ImageLayer, image: HTMLImageElement) {
+    // const image = imageCache[layer.imageSrc];
+    // if (!image) {
+    //     loadImage(layer.imageSrc);
+    //     return;
+    // }
 
     ctx.save();
 
@@ -27,14 +27,16 @@ export function renderImageLayer(ctx: CanvasRenderingContext2D, layer: ImageLaye
     ctx.restore();
 }
 
-export async function loadImage(src: string){
-    if (imageCache[src]) return imageCache[src];
+export async function loadImage(src: string, projectStore: ProjectStore) {
+    if (projectStore.assets[src]) {
+        return;
+    }
 
     const image = new Image();
     image.src = src;
     await new Promise((resolve) => {
         image.onload = resolve;
     });
-    imageCache[src] = image;
-    return image;
+
+    projectStore.setImageInCache(src, image);
 }
